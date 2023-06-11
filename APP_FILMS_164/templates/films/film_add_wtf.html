@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %} Ajouter un FILM (WTF) {% endblock %}
+{% block title %} Ajouter un devis {% endblock %}
 {% block body %}
 <div class="container">
 	<div class="row">
@@ -12,13 +12,26 @@
 				{{ form_add_film.hidden_tag() }}
 				<div class="form-group">
 					<p>
-						{{ form_add_film.nom_film_add_wtf.label }}<br>
-						{{ form_add_film.nom_film_add_wtf(size=32) }}<br>
-						{% for error in form_add_film.nom_film_add_wtf.errors %}
+						{{ form_add_film.nom_projet_add.label }}<br>
+						{{ form_add_film.nom_projet_add(size=32) }}<br>
+						{% for error in form_add_film.nom_projet_add.errors %}
 							<span style="color: red;">[{{ error }}]</span>
 						{% endfor %}
 					</p>
-
+					<p>
+						{{ form_add_film.nom_chantier_add.label }}<br>
+						{{ form_add_film.nom_chantier_add(size=32) }}<br>
+						{% for error in form_add_film.nom_chantier_add.errors %}
+							<span style="color: red;">[{{ error }}]</span>
+						{% endfor %}
+					</p>
+					<p>
+						{{ form_add_film.nom_client.label }}<br>
+						{{ form_add_film.nom_client(size=32) }}<br>
+						{% for error in form_add_film.nom_client.errors %}
+							<span style="color: red;">[{{ error }}]</span>
+						{% endfor %}
+					</p>
 				</div>
 				{{ form_add_film.submit(class="btn btn-primary") }}
 			</form>

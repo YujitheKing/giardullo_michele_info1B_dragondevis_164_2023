@@ -35,20 +35,32 @@ def film_add_wtf():
     if request.method == "POST":
         try:
             if form_add_film.validate_on_submit():
-                nom_film_add = form_add_film.nom_film_add_wtf.data
+                #nom_film_add = form_add_film.nom_film_add_wtf.data
 
-                valeurs_insertion_dictionnaire = {"value_nom_film": nom_film_add}
+                nom_projet_add = form_add_film.nom_projet_add.data
+                nom_chantier_add = form_add_film.nom_chantier_add.data
+                nom_client_add = form_add_film.nom_client.data
+                valeurs_insertion_dictionnaire = {"nom_projet_add": nom_projet_add, "nom_chantier_add": nom_chantier_add, "nom_client_add": nom_client_add}
                 print("valeurs_insertion_dictionnaire ", valeurs_insertion_dictionnaire)
 
-                strsql_insert_film = """INSERT INTO t_devis (id_devis,nom_chantier) VALUES (NULL,%(value_nom_film)s) """
+                strsql_insert_film = """INSERT INTO t_devis (id_devis,nom_chantier,nom_projet) VALUES (NULL,%(nom_chantier_add)s,%(nom_projet_add)s) """
+
+
+
                 with DBconnection() as mconn_bd:
                     mconn_bd.execute(strsql_insert_film, valeurs_insertion_dictionnaire)
+                    devis_id = mconn_bd.lastrowid
 
-                flash(f"Données insérées !!", "success")
+                    valeurs_insertion_dictionnaire = {"nom_client_add": nom_client_add,
+                                                      "devis_id": devis_id}
+                    str_sql_insert_client = """ INSERT INTO t_devis_avoir_clients (fk_client,fk_devis) VALUES (%(nom_client_add)s,%(devis_id)s) """
+                    mconn_bd.execute(str_sql_insert_client, valeurs_insertion_dictionnaire)
+
+                flash(f"Données insérées", "success")
                 print(f"Données insérées !!")
 
                 # Pour afficher et constater l'insertion du nouveau film (id_film_sel=0 => afficher tous les films)
-                return redirect(url_for('devis_clients_afficher', id_film_sel=0))
+                return redirect(url_for('films_genres_afficher', id_film_sel=0))
 
         except Exception as Exception_genres_ajouter_wtf:
             raise ExceptionGenresAjouterWtf(f"fichier : {Path(__file__).name}  ;  "
@@ -115,8 +127,8 @@ def film_update_wtf():
             # Afficher seulement le film modifié, "ASC" et l'"id_film_update"
             return redirect(url_for('films_genres_afficher', id_film_sel=id_film_update))
         elif request.method == "GET":
-            # Opération sur la BD pour récupérer "id_film" et "intitule_genre" de la "t_genre"
-            str_sql_id_film = "SELECT * FROM t_devis WHERE id_devis = %(value_id_film)s"
+            # Opération sur la BD pour récupérer "id_devis"
+            str_sql_id_film = "SELECT * FROM t_devis d LEFT JOIN t_devis_avoir_clients dac ON d.id_devis = dac.fk_devis WHERE id_devis = %(value_id_film)s"
             valeur_select_dictionnaire = {"value_id_film": id_film_update}
             with DBconnection() as mybd_conn:
                 mybd_conn.execute(str_sql_id_film, valeur_select_dictionnaire)
@@ -131,6 +143,7 @@ def film_update_wtf():
 
             form_update_film.nom_projet.data = data_film["nom_projet"]
             form_update_film.nom_chantier.data = data_film["nom_chantier"]
+            form_update_film.nom_client.data = data_film["fk_client"]
             # Debug simple pour contrôler la valeur dans la console "run" de PyCharm
             print(f" duree film  ", data_film["nom_chantier"], "  type ", type(data_film["nom_projet"]))
 
@@ -177,7 +190,7 @@ def film_delete_wtf():
             data_film_delete = session['data_film_delete']
             print("data_film_delete ", data_film_delete)
 
-            flash(f"Effacer le film de façon définitive de la BD !!!", "danger")
+            flash(f"Effacer le devis de façon définitive de la BD !!!", "danger")
             # L'utilisateur vient de cliquer sur le bouton de confirmation pour effacer...
             # On affiche le bouton "Effacer genre" qui va irrémédiablement EFFACER le genre
             btn_submit_del = True
@@ -187,16 +200,19 @@ def film_delete_wtf():
             valeur_delete_dictionnaire = {"value_id_film": id_film_delete}
             print("valeur_delete_dictionnaire ", valeur_delete_dictionnaire)
 
-            str_sql_delete_fk_film_genre = """DELETE FROM t_genre_film WHERE fk_film = %(value_id_film)s"""
+            #str_sql_delete_fk_film_genre = """DELETE FROM t_genre_film WHERE fk_film = %(value_id_film)s"""
+            str_sql_delete_fk_film_genre = """DELETE FROM t_devis_avoir_clients WHERE fk_devis = %(value_id_film)s"""
+            str_sql_delete_fk_film_rubriques = """DELETE FROM t_devis_avoir_rubriques WHERE fk_devis = %(value_id_film)s"""
             str_sql_delete_film = """DELETE FROM t_devis WHERE id_devis = %(value_id_film)s"""
             # Manière brutale d'effacer d'abord la "fk_film", même si elle n'existe pas dans la "t_genre_film"
-            # Ensuite on peut effacer le film vu qu'il n'est plus "lié" (INNODB) dans la "t_genre_film"
+            # Ensuite on peut effacer le devis vu qu'il n'est plus "lié" (INNODB) dans la "t_genre_film"
             with DBconnection() as mconn_bd:
                 mconn_bd.execute(str_sql_delete_fk_film_genre, valeur_delete_dictionnaire)
+                mconn_bd.execute(str_sql_delete_fk_film_rubriques, valeur_delete_dictionnaire)
                 mconn_bd.execute(str_sql_delete_film, valeur_delete_dictionnaire)
 
-            flash(f"Film définitivement effacé !!", "success")
-            print(f"Film définitivement effacé !!")
+            flash(f"Devis définitivement effacé !!", "success")
+            print(f"Devis définitivement effacé !!")
 
             # afficher les données
             return redirect(url_for('films_genres_afficher', id_film_sel=0))
@@ -205,7 +221,13 @@ def film_delete_wtf():
             print(id_film_delete, type(id_film_delete))
 
             # Requête qui affiche le film qui doit être efffacé.
-            str_sql_genres_films_delete = """SELECT * FROM t_devis WHERE id_devis = %(value_id_film)s"""
+            str_sql_genres_films_delete = """SELECT id_devis, nom_clients, nom_chantier, nom_projet, GROUP_CONCAT(designation,'\n',prix) AS detailprix, SUM(prix) AS total
+                    FROM t_devis_avoir_clients
+                    RIGHT JOIN t_devis ON t_devis.id_devis = t_devis_avoir_clients.fk_devis
+                    LEFT JOIN t_clients ON t_clients.id_clients = t_devis_avoir_clients.fk_client
+                    RIGHT JOIN t_devis_avoir_rubriques dar ON dar.fk_devis = t_devis.id_devis
+                    LEFT JOIN t_rubriques r ON r.id_rubriques = dar.fk_rubriques
+                    WHERE id_devis = %(value_id_film)s"""
 
             with DBconnection() as mydb_conn:
                 mydb_conn.execute(str_sql_genres_films_delete, valeur_select_dictionnaire)

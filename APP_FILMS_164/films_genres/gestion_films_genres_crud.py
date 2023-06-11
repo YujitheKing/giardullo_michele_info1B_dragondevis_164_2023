@@ -32,24 +32,25 @@ def films_genres_afficher(id_film_sel):
     if request.method == "GET":
         try:
             with DBconnection() as mc_afficher:
-                strsql_genres_films_afficher_data = """SELECT id_devis, nom_clients, nom_chantier, nom_projet, GROUP_CONCAT(designation,'\n',prix) AS detailprix, SUM(prix) AS total
-                    FROM t_devis_avoir_clients
-                    RIGHT JOIN t_devis ON t_devis.id_devis = t_devis_avoir_clients.fk_devis
+                strsql_genres_films_afficher_data = """SELECT id_devis, nom_clients, nom_chantier, nom_projet, GROUP_CONCAT(designation,'\n',prix) AS detailprix, SUM(prix) AS total, GROUP_CONCAT(designation) AS detailrubriques
+                    FROM t_devis d
+                    LEFT JOIN t_devis_avoir_clients ON d.id_devis = t_devis_avoir_clients.fk_devis
                     LEFT JOIN t_clients ON t_clients.id_clients = t_devis_avoir_clients.fk_client
-                    RIGHT JOIN t_devis_avoir_rubriques dar ON dar.fk_devis = t_devis.id_devis
+                    LEFT JOIN t_devis_avoir_rubriques dar ON dar.fk_devis = d.id_devis
                     LEFT JOIN t_rubriques r ON r.id_rubriques = dar.fk_rubriques
-                    GROUP BY id_devis
+                    
                     """
                 if id_film_sel == 0:
                     # le paramètre 0 permet d'afficher tous les films
                     # Sinon le paramètre représente la valeur de l'id du film
+                    strsql_genres_films_afficher_data += """ GROUP BY id_devis """
                     mc_afficher.execute(strsql_genres_films_afficher_data)
                 else:
                     # Constitution d'un dictionnaire pour associer l'id du film sélectionné avec un nom de variable
                     valeur_id_film_selected_dictionnaire = {"value_id_film_selected": id_film_sel}
                     # En MySql l'instruction HAVING fonctionne comme un WHERE... mais doit être associée à un GROUP BY
                     # L'opérateur += permet de concaténer une nouvelle valeur à la valeur de gauche préalablement définie.
-                    strsql_genres_films_afficher_data += """ HAVING id_devis= %(value_id_film_selected)s"""
+                    strsql_genres_films_afficher_data += """ WHERE d.id_devis= %(value_id_film_selected)s"""
 
                     mc_afficher.execute(strsql_genres_films_afficher_data, valeur_id_film_selected_dictionnaire)
 
@@ -62,9 +63,9 @@ def films_genres_afficher(id_film_sel):
                     flash("""La table "t_devis" est vide. !""", "warning")
                 elif not data_genres_films_afficher and id_film_sel > 0:
                     # Si l'utilisateur change l'id_film dans l'URL et qu'il ne correspond à aucun film
-                    flash(f"Le film {id_film_sel} demandé n'existe pas !!", "warning")
+                    flash(f"Le devis {id_film_sel} demandé n'existe pas !!", "warning")
                 else:
-                    flash(f"Données films et genres affichés !!", "success")
+                    flash(f"Devis affichés !!", "success")
 
         except Exception as Exception_films_genres_afficher:
             raise ExceptionFilmsGenresAfficher(f"fichier : {Path(__file__).name}  ;  {films_genres_afficher.__name__} ;"
@@ -96,7 +97,7 @@ def edit_genre_film_selected():
     if request.method == "GET":
         try:
             with DBconnection() as mc_afficher:
-                strsql_genres_afficher = """SELECT id_clients, intitule_clients FROM id_clients ORDER BY id_genre ASC"""
+                strsql_genres_afficher = """SELECT id_rubriques,designation FROM t_rubriques """
                 mc_afficher.execute(strsql_genres_afficher)
             data_genres_all = mc_afficher.fetchall()
             print("dans edit_genre_film_selected ---> data_genres_all", data_genres_all)
@@ -130,14 +131,14 @@ def edit_genre_film_selected():
 
             # Dans le composant "tags-selector-tagselect" on doit connaître
             # les genres qui ne sont pas encore sélectionnés.
-            lst_data_genres_films_non_attribues = [item['id_clients'] for item in data_genres_films_non_attribues]
+            lst_data_genres_films_non_attribues = [item['designation'] for item in data_genres_films_non_attribues]
             session['session_lst_data_genres_films_non_attribues'] = lst_data_genres_films_non_attribues
             print("lst_data_genres_films_non_attribues  ", lst_data_genres_films_non_attribues,
                   type(lst_data_genres_films_non_attribues))
 
             # Dans le composant "tags-selector-tagselect" on doit connaître
             # les genres qui sont déjà sélectionnés.
-            lst_data_genres_films_old_attribues = [item['id_clients'] for item in data_genres_films_attribues]
+            lst_data_genres_films_old_attribues = [item['id_devis'] for item in data_genres_films_attribues]
             session['session_lst_data_genres_films_old_attribues'] = lst_data_genres_films_old_attribues
             print("lst_data_genres_films_old_attribues  ", lst_data_genres_films_old_attribues,
                   type(lst_data_genres_films_old_attribues))
@@ -147,12 +148,12 @@ def edit_genre_film_selected():
                   type(data_genres_films_non_attribues))
             print(" data_genres_films_attribues ", data_genres_films_attribues, "type ",
                   type(data_genres_films_attribues))
-
+            """
             # Extrait les valeurs contenues dans la table "t_genres", colonne "intitule_genre"
             # Le composant javascript "tagify" pour afficher les tags n'a pas besoin de l'id_genre
-            lst_data_genres_films_non_attribues = [item['intitule_genre'] for item in data_genres_films_non_attribues]
+            lst_data_genres_films_non_attribues = [item['designation'] for item in data_genres_films_non_attribues]
             print("lst_all_genres gf_edit_genre_film_selected ", lst_data_genres_films_non_attribues,
-                  type(lst_data_genres_films_non_attribues))
+                  type(lst_data_genres_films_non_attribues)) """
 
         except Exception as Exception_edit_genre_film_selected:
             raise ExceptionEditGenreFilmSelected(f"fichier : {Path(__file__).name}  ;  "
@@ -224,11 +225,14 @@ def update_genre_film_selected():
 
             # SQL pour insérer une nouvelle association entre
             # "fk_film"/"id_film" et "fk_genre"/"id_genre" dans la "t_genre_film"
-            strsql_insert_genre_film = """INSERT INTO t_devis_avoir_clients (id_devis_avoir_clients, fk_client, fk_devis)
-                                                    VALUES (NULL, %(value_fk_client)s, %(value_fk_devis)s)"""
+
+            #strsql_insert_genre_film = """INSERT INTO t_devis_avoir_clients (id_devis_avoir_clients, fk_client, fk_devis) VALUES (NULL, %(value_fk_client)s, %(value_fk_devis)s)"""
+
+            strsql_insert_genre_film = """INSERT INTO t_devis_avoir_rubriques (id_devis_avoir_rubriques, fk_rubriques, fk_devis) VALUES (NULL, %(value_fk_rubriques)s, %(value_fk_devis)s)"""
 
             # SQL pour effacer une (des) association(s) existantes entre "id_film" et "id_genre" dans la "t_genre_film"
-            strsql_delete_genre_film = """DELETE FROM t_devis_avoir_clients WHERE fk_client = %(value_fk_client)s AND fk_film = %(value_fk_devis)s"""
+            #strsql_delete_genre_film = """DELETE FROM t_devis_avoir_clients WHERE fk_client = %(value_fk_client)s AND fk_film = %(value_fk_devis)s"""
+            strsql_delete_genre_film = """DELETE FROM t_devis_avoir_rubriques WHERE fk_rubriques = %(value_fk_rubriques)s AND fk_devis = %(value_fk_devis)s"""
 
             with DBconnection() as mconn_bd:
                 # Pour le film sélectionné, parcourir la liste des genres à INSÉRER dans la "t_genre_film".
@@ -279,20 +283,21 @@ def genres_films_afficher_data(valeur_id_film_selected_dict):
     print("valeur_id_film_selected_dict...", valeur_id_film_selected_dict)
     try:
 
-        strsql_film_selected = """SELECT id_devis, nom_chantier, nom_projet, description_devis, cover_link_devis, date_sortie_devis, GROUP_CONCAT(id_clients) as GenresFilms FROM t_devis_avoir_clients
-                                        INNER JOIN t_devis ON t_devis.id_devis = t_devis_avoir_clients.fk_devis
-                                        INNER JOIN t_clients ON t_clients.id_clients = t_devis_avoir_clients.fk_client
-                                        WHERE id_devis = %(value_id_devis_selected)s"""
+        strsql_film_selected = """ SELECT * FROM t_devis
+                                    WHERE id_devis = %(value_id_film_selected)s """
 
-        strsql_genres_films_non_attribues = """SELECT id_clients, intitule_clients FROM t_genre WHERE id_clients not in(SELECT id_clients as idGenresFilms FROM t_devis_avoir_clients
-                                                    INNER JOIN t_devis ON t_devis.id_devis = t_devis_avoir_clients.fk_devis
-                                                    INNER JOIN t_clients ON t_clients.id_clients = t_devis_avoir_clients.fk_client
-                                                    WHERE id_devis = %(value_id_devis_selected)s)"""
+        strsql_genres_films_non_attribues = """ SELECT id_rubriques, designation
+                                                FROM t_rubriques 
+                                                WHERE id_rubriques not IN(
+                                                    SELECT id_rubriques as idGenresFilms 
+                                                    FROM t_devis_avoir_rubriques dar
+                                                   INNER JOIN t_devis d ON d.id_devis = dar.fk_devis
+                                                   INNER JOIN t_rubriques r ON r.id_rubriques = dar.fk_rubriques
+                                                   WHERE fk_devis =  %(value_id_film_selected)s 
+                                                ) """
 
-        strsql_genres_films_attribues ="""SELECT id_devis, nom_chantier, nom_projet, description_devis, cover_link_devis, date_sortie_devis, GROUP_CONCAT(id_clients) as GenresFilms FROM t_devis_avoir_clients
-                                        INNER JOIN t_devis ON t_devis.id_devis = t_devis_avoir_clients.fk_devis
-                                        INNER JOIN t_clients ON t_clients.id_clients = t_devis_avoir_clients.fk_client
-                                        WHERE id_devis = %(value_id_devis_selected)s"""
+        strsql_genres_films_attribues = """ SELECT * FROM t_devis
+                                            WHERE id_devis = %(value_id_film_selected)s """
 
 
 
